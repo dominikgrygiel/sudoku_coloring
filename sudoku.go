@@ -4,17 +4,25 @@ import (
 	"strconv"
 )
 
-type sudokuColors [9][9]int
+type sudokuColors [][]int
 
 type Sudoku struct {
-	board  *sudokuBoard
-	colors sudokuColors
+	board      *sudokuBoard
+	colors     sudokuColors
+	squareSize int
+	NumColors  int
 }
 
-func NewSudoku() *Sudoku {
-	var colors sudokuColors
-	board := newSudokuBoard()
-	sudoku := Sudoku{board, colors}
+func NewSudoku(squareSize int) *Sudoku {
+	numColors := squareSize * squareSize
+
+	colors := make(sudokuColors, numColors)
+	for i := range colors {
+		colors[i] = make([]int, numColors)
+	}
+
+	board := newSudokuBoard(squareSize)
+	sudoku := Sudoku{board, colors, squareSize, numColors}
 
 	return &sudoku
 }
@@ -33,9 +41,9 @@ func (s *Sudoku) SetColor(i, j, color int) {
 }
 
 func (s *Sudoku) IsSolved() bool {
-	for i := 0; i < 9; i++ {
-		for j := 0; j < 9; j++ {
-			if s.colors[i][j] < 1 {
+	for i := 0; i < s.NumColors; i++ {
+		for j := 0; j < s.NumColors; j++ {
+			if s.GetColor(i, j) < 1 {
 				return false
 			}
 		}
@@ -44,16 +52,29 @@ func (s *Sudoku) IsSolved() bool {
 	return true
 }
 
-func colorDifference(colors []int) (diff []int) {
-	availableColors := [9]int{1, 2, 3, 4, 5, 6, 7, 8, 9}
+func (s *Sudoku) duplicateColors() (originalColors sudokuColors) {
+	originalColors = s.colors
+
+	colorsCopy := make(sudokuColors, s.NumColors)
+	for i := range colorsCopy {
+		colorsCopy[i] = make([]int, s.NumColors)
+		copy(colorsCopy[i], s.colors[i])
+	}
+
+	s.colors = colorsCopy
+
+	return
+}
+
+func colorDifference(colors []int, numColors int) (diff []int) {
 	m := make(map[int]bool)
 
 	for _, item := range colors {
 		m[item] = true
 	}
-	for _, item := range availableColors {
-		if _, ok := m[item]; !ok {
-			diff = append(diff, item)
+	for i := 1; i <= numColors; i++ {
+		if _, ok := m[i]; !ok {
+			diff = append(diff, i)
 		}
 	}
 
@@ -67,8 +88,8 @@ func doSolve(s Sudoku) (bool, *sudokuColors) {
 	for assignedColor := true; assignedColor; assignedColor = false {
 		minAmbigiousColors = []int{}
 
-		for i := 0; i < 9; i++ {
-			for j := 0; j < 9; j++ {
+		for i := 0; i < s.NumColors; i++ {
+			for j := 0; j < s.NumColors; j++ {
 				if s.GetColor(i, j) < 1 {
 					var usedColors []int
 					neighbours := s.board.nodeBoard[i][j].Vertices()
@@ -79,7 +100,7 @@ func doSolve(s Sudoku) (bool, *sudokuColors) {
 						}
 					}
 
-					possibleColors := colorDifference(usedColors)
+					possibleColors := colorDifference(usedColors, s.NumColors)
 					if numPossibleColors := len(possibleColors); numPossibleColors == 1 {
 						s.SetColor(i, j, possibleColors[0])
 						assignedColor = true
@@ -94,11 +115,14 @@ func doSolve(s Sudoku) (bool, *sudokuColors) {
 
 	if !s.IsSolved() {
 		for colorIdx := range minAmbigiousColors {
+			colorsOrig := s.duplicateColors()
 			s.SetColor(minAmbigiousCoords[0], minAmbigiousCoords[1], minAmbigiousColors[colorIdx])
 
 			if solved, colors := doSolve(s); solved {
 				return true, colors
 			}
+
+			s.colors = colorsOrig
 		}
 
 		return false, &s.colors
@@ -113,16 +137,16 @@ func (s *Sudoku) Solve() {
 }
 
 func (s *Sudoku) String() (repr string) {
-	for i := 0; i < 9; i++ {
-		for j := 0; j < 9; j++ {
-			repr += strconv.Itoa(s.colors[i][j])
+	for i := 0; i < s.NumColors; i++ {
+		for j := 0; j < s.NumColors; j++ {
+			repr += strconv.Itoa(s.GetColor(i, j))
 
-			if j < 8 {
+			if j < s.NumColors-1 {
 				repr += " "
 			}
 		}
 
-		if i < 8 {
+		if i < s.NumColors-1 {
 			repr += "\n"
 		}
 	}

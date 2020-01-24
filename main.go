@@ -5,10 +5,13 @@ import (
 )
 
 func readSudoku() *Sudoku {
-	sudoku := NewSudoku()
+	var squareSize int
+	fmt.Scanf("%d", &squareSize)
 
-	for i := 0; i < 9; i++ {
-		for j := 0; j < 9; j++ {
+	sudoku := NewSudoku(squareSize)
+
+	for i := 0; i < sudoku.NumColors; i++ {
+		for j := 0; j < sudoku.NumColors; j++ {
 			var x int
 			fmt.Scanf("%d", &x)
 
