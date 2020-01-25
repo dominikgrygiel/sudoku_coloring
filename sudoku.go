@@ -27,8 +27,13 @@ func NewSudoku(squareSize int) *Sudoku {
 	return &sudoku
 }
 
+func (s *Sudoku) GetNodeCoords(n *Node) [2]int {
+	coords, _ := s.board.nodeLookup[n]
+	return coords
+}
+
 func (s *Sudoku) GetNodeColor(n *Node) int {
-	coord, _ := s.board.nodeLookup[n]
+	coord := s.GetNodeCoords(n)
 	return s.GetColor(coord[0], coord[1])
 }
 
@@ -66,6 +71,21 @@ func (s *Sudoku) duplicateColors() (originalColors sudokuColors) {
 	return
 }
 
+func difference(n1, n2 []int) (diff []int) {
+	m := make(map[int]bool)
+
+	for _, item := range n2 {
+		m[item] = true
+	}
+	for item := range n1 {
+		if _, ok := m[item]; !ok {
+			diff = append(diff, item)
+		}
+	}
+
+	return
+}
+
 func colorDifference(colors []int, numColors int) (diff []int) {
 	m := make(map[int]bool)
 
@@ -82,14 +102,20 @@ func colorDifference(colors []int, numColors int) (diff []int) {
 }
 
 func doSolve(s Sudoku) (bool, *sudokuColors) {
-	var minAmbigiousColors []int
+	var minAmbigiousColors [][][]int
 	var minAmbigiousCoords [2]int
+	var numMinAmbColors int
 
-	for assignedColor := true; assignedColor; assignedColor = false {
-		minAmbigiousColors = []int{}
+	assignedColor := true
+	for assignedColor {
+		minAmbigiousColors = make([][][]int, s.NumColors)
+		numMinAmbColors = 0
+		assignedColor = false
 
 		for i := 0; i < s.NumColors; i++ {
+			minAmbigiousColors[i] = make([][]int, s.NumColors)
 			for j := 0; j < s.NumColors; j++ {
+				minAmbigiousColors[i][j] = []int{}
 				if s.GetColor(i, j) < 1 {
 					var usedColors []int
 					neighbours := s.board.nodeBoard[i][j].Vertices()
@@ -101,12 +127,40 @@ func doSolve(s Sudoku) (bool, *sudokuColors) {
 					}
 
 					possibleColors := colorDifference(usedColors, s.NumColors)
+					minAmbigiousColors[i][j] = possibleColors
 					if numPossibleColors := len(possibleColors); numPossibleColors == 1 {
 						s.SetColor(i, j, possibleColors[0])
 						assignedColor = true
-					} else if numPossibleColors > 1 && (len(minAmbigiousColors) == 0 || numPossibleColors < len(minAmbigiousColors)) {
-						minAmbigiousColors = possibleColors
+					} else if (numMinAmbColors == 0) || (numPossibleColors < numMinAmbColors) {
 						minAmbigiousCoords = [2]int{i, j}
+						numMinAmbColors = numPossibleColors
+					}
+				}
+			}
+		}
+
+		if !assignedColor && (numMinAmbColors > 0) {
+			for i := 0; i < s.NumColors; i++ {
+				for j := 0; j < s.NumColors; j++ {
+					if s.GetColor(i, j) < 1 {
+						possibleColors := minAmbigiousColors[i][j]
+						neighbours := s.board.nodeBoard[i][j].Vertices()
+
+						for idx := range neighbours {
+							neighbourCoords := s.GetNodeCoords(neighbours[idx])
+							neighbourAmbColors := minAmbigiousColors[neighbourCoords[0]][neighbourCoords[1]]
+
+							if len(neighbourAmbColors) > 1 {
+								possibleColors = difference(possibleColors, neighbourAmbColors)
+							} else if neighbourColor := s.GetNodeColor(neighbours[idx]); neighbourColor > 0 {
+								possibleColors = difference(possibleColors, []int{neighbourColor})
+							}
+						}
+
+						if numPossibleColors := len(possibleColors); numPossibleColors == 1 && possibleColors[0] > 0 {
+							s.SetColor(i, j, possibleColors[0])
+							assignedColor = true
+						}
 					}
 				}
 			}
@@ -114,9 +168,13 @@ func doSolve(s Sudoku) (bool, *sudokuColors) {
 	}
 
 	if !s.IsSolved() {
-		for colorIdx := range minAmbigiousColors {
+		if numMinAmbColors == 0 {
+			return false, &s.colors
+		}
+
+		for _, color := range minAmbigiousColors[minAmbigiousCoords[0]][minAmbigiousCoords[1]] {
 			colorsOrig := s.duplicateColors()
-			s.SetColor(minAmbigiousCoords[0], minAmbigiousCoords[1], minAmbigiousColors[colorIdx])
+			s.SetColor(minAmbigiousCoords[0], minAmbigiousCoords[1], color)
 
 			if solved, colors := doSolve(s); solved {
 				return true, colors

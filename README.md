@@ -1,6 +1,6 @@
 ## Sudoku coloring
 
-Solve sudoku using graph coloring and golang.
+Solve sudoku of "any" size using graph coloring and golang.
 
 ### Usage
 
